@@ -183,8 +183,6 @@ def getDefaultInterfaceMAC():
 
 # retrieve gateway IP
 def getGatewayIP():
-    global stopAnimation
-def getGatewayIP():
     try:
         gateways = netifaces.gateways()
         defgateway = gateways['default'][netifaces.AF_INET][0]
