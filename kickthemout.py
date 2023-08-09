@@ -31,8 +31,8 @@ try:
     conf.ipv6_enabled = False
     from scapy.all import *
     import scan, spoof, nmap
-    from urllib.request import urlopen, Request
-    from urllib.error import URLError
+    import requests
+    import netifaces
 except KeyboardInterrupt:
     shutdown()
 except:
@@ -127,9 +127,9 @@ def runDebug():
 # make sure there is an internet connection
 def checkInternetConnection():
     try:
-        urlopen('https://github.com', timeout=3)
+        requests.get('https://github.com', timeout=3)
         return True
-    except URLError as err:
+    except requests.ConnectionError as err:
         return False
     except KeyboardInterrupt:
         shutdown()
@@ -184,17 +184,15 @@ def getDefaultInterfaceMAC():
 # retrieve gateway IP
 def getGatewayIP():
     global stopAnimation
+def getGatewayIP():
     try:
-        getGateway, timeout = sr1(IP(dst="github.com", ttl=0) / ICMP() / "XXXXXXXXXXX", verbose=False, timeout=4)
-        if timeout:
-            raise Exception()
-        return getGateway.src
-    except:
+        gateways = netifaces.gateways()
+        defgateway = gateways['default'][netifaces.AF_INET][0]
+        return defgateway
+    except Exception as e:
+        print(e)
         # request gateway IP address (after failed detection by scapy)
-        stopAnimation = True
-        print("\n{}ERROR: Gateway IP could not be obtained. Please enter IP manually.{}\n".format(RED, END))
-        header = ('{}kickthemout{}> {}Enter Gateway IP {}(e.g. 192.168.1.1): '.format(BLUE, WHITE, RED, END))
-        return (input(header))
+        return ValueError
 
 
 
@@ -215,16 +213,18 @@ def retrieveMACAddress(host):
 def resolveMac(mac):
     try:
         # send request to macvendors.co
-        url = "http://macvendors.co/api/vendorname/"
-        request = Request(url + mac, headers={'User-Agent': "API Browser"})
-        response = urlopen(request)
-        vendor = response.read()
-        vendor = vendor.decode("utf-8")
-        vendor = vendor[:25]
+        url = "https://api.maclookup.app/v2/macs/"
+        maccheck = requests.get(url + mac + "?format=json")
+        if maccheck.status_code == 429:
+            time.sleep(1.5)
+            maccheck = requests.get(url + mac + "?format=json")
+        maccheck = maccheck.json()        
+        vendor = maccheck["company"]
         return vendor
     except KeyboardInterrupt:
-        shutdown()
-    except:
+        exit()
+    except Exception as e:
+        print("Error: " + e)
         return "N/A"
 
 
@@ -395,12 +395,8 @@ def kickoneoff():
         for host in hostsList:
             if host[0] == onlineIPs[i]:
                 mac = host[1]
-        try:
-            hostname = utils.socket.gethostbyaddr(onlineIPs[i])[0]
-        except:
-            hostname = "N/A"
         vendor = resolveMac(mac)
-        print("  [{}{}{}] {}{}{}\t{}{}\t{} ({}{}{}){}".format(YELLOW, str(i), WHITE, RED, str(onlineIPs[i]), BLUE, mac, GREEN, vendor, YELLOW, hostname, GREEN, END))
+        print("  [{}{}{}] {}{}{}\t{}{}\t{} {}{}".format(YELLOW, str(i), WHITE, RED, str(onlineIPs[i]), BLUE, mac, GREEN, vendor, GREEN, END))
 
     canBreak = False
     while not canBreak:
